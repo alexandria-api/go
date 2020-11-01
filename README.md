@@ -1,9 +1,9 @@
 ## alexandria
 #### version 1.0.0
-GO Image Storage and Retrieval API using [Gin](https://github.com/gin-gonic/gin)
+Go Image Storage and Retrieval API using [Gin](https://github.com/gin-gonic/gin)
 
 ### Requirements
-[GO](https://www.php.net/)
+[Go](https://www.php.net/)
 
 ### Setup
 1. Create directory `storage/images`
