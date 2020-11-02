@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -14,7 +15,8 @@ import (
 )
 
 var (
-	config Config
+	config          Config
+	positionInQueue = 0
 )
 
 func main() {
@@ -36,28 +38,42 @@ func main() {
 }
 
 func createApplicationFolders() {
-	if _, err := os.Stat("storage"); os.IsNotExist(err) {
-		createDirErr := os.Mkdir("storage", 0777)
+	const (
+		filePermission = 0777
+		dirStorage     = "storage"
+		dirImages      = dirStorage + "/images"
+		dirTemporary   = dirStorage + "/temporary"
+		dirQueue       = dirStorage + "/queue"
+		dirError       = dirStorage + "/error"
+	)
+	if _, err := os.Stat(dirStorage); os.IsNotExist(err) {
+		createDirErr := os.Mkdir(dirStorage, filePermission)
 		if createDirErr != nil {
-			log.Fatal("Failed to create dir 'storage'.")
+			log.Fatal("Failed to create dir '" + dirStorage + "'.")
 		}
 	}
-	if _, err := os.Stat("storage/images"); os.IsNotExist(err) {
-		createDirErr := os.MkdirAll("./storage/images", 0777)
+	if _, err := os.Stat(dirImages); os.IsNotExist(err) {
+		createDirErr := os.MkdirAll(dirImages, filePermission)
 		if createDirErr != nil {
-			log.Fatal("Failed to create dir 'storage/images'.")
+			log.Fatal("Failed to create dir '" + dirImages + "'.")
 		}
 	}
-	if _, err := os.Stat("storage/temporary"); os.IsNotExist(err) {
-		createDirErr := os.MkdirAll("storage/temporary", 0777)
+	if _, err := os.Stat(dirTemporary); os.IsNotExist(err) {
+		createDirErr := os.MkdirAll(dirTemporary, filePermission)
 		if createDirErr != nil {
-			log.Fatal("Failed to create dir 'storage/temporary'.")
+			log.Fatal("Failed to create dir '" + dirTemporary + "'.")
 		}
 	}
-	if _, err := os.Stat("storage/errors"); os.IsNotExist(err) {
-		createDirErr := os.MkdirAll("storage/errors", 0777)
+	if _, err := os.Stat(dirQueue); os.IsNotExist(err) {
+		createDirErr := os.MkdirAll(dirQueue, filePermission)
 		if createDirErr != nil {
-			log.Fatal("Failed to create dir 'storage/errors'.")
+			log.Fatal("Failed to create dir '" + dirQueue + "'.")
+		}
+	}
+	if _, err := os.Stat(dirError); os.IsNotExist(err) {
+		createDirErr := os.MkdirAll(dirError, filePermission)
+		if createDirErr != nil {
+			log.Fatal("Failed to create dir '" + dirError + "'.")
 		}
 	}
 }
@@ -99,10 +115,6 @@ func retrieve(c *gin.Context) {
 	}
 
 	c.File(foundFile)
-}
-
-func logError(error string) {
-
 }
 
 func validIdentifier(identifier string) bool {
@@ -168,35 +180,60 @@ func upload(c *gin.Context) {
 		filename       = generateIdentifier()
 		fullname       = filename + "." + extension
 		temporaryPath  = "storage/temporary/" + fullname
+		queuePath      = "storage/queue/" + fullname
 		successfulPath = "storage/images/" + fullname
 	)
 
-	c.SaveUploadedFile(file, temporaryPath)
-
-	compress := exec.Command("imagecomp", temporaryPath)
-	_, err = compress.Output()
-
-	if err != nil {
-		sendResponse(c, http.StatusOK, gin.H{
+	err = c.SaveUploadedFile(file, temporaryPath)
+	if nil != err {
+		sendResponse(c, 500, gin.H{
 			"error":   "server failure",
-			"message": "Failed to compress file.",
+			"message": "Failed to save image to temporary location.",
 		})
 		return
 	}
 
-	err = os.Rename(temporaryPath, successfulPath)
-	if err != nil {
-		sendResponse(c, http.StatusOK, gin.H{
+	movedToQueue := moveImage(temporaryPath, queuePath)
+	if !movedToQueue {
+		sendResponse(c, 500, gin.H{
 			"error":   "server failure",
-			"message": "Failed to move file from temporary location.",
+			"message": "Failed to move image into queue.",
 		})
 		return
 	}
 
+	go compressAndFinishUploadedImage(queuePath, successfulPath)
+
+	positionInQueue++
 	sendResponse(c, http.StatusOK, gin.H{
-		"success": "file uploaded",
-		"message": "File has been saved as " + fullname,
+		"success": "file added to queue",
+		"message": "Position in queue: " + fmt.Sprintf("%v", positionInQueue),
+		"id":      filename,
 	})
+}
+
+func moveImage(imagePath string, newPath string) bool {
+	err := os.Rename(imagePath, newPath)
+	if nil != err {
+		return false
+	}
+	return true
+}
+
+func compressAndFinishUploadedImage(imagePath string, finalPath string) bool {
+	compress := exec.Command("imagecomp", imagePath)
+	_, err := compress.Output()
+	if nil != err {
+		return false
+	}
+
+	imageMoved := moveImage(imagePath, finalPath)
+	if !imageMoved {
+		return false
+	}
+	positionInQueue--
+
+	return true
 }
 
 func sendResponse(c *gin.Context, code int, res gin.H) {
