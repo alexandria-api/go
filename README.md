@@ -1,10 +1,10 @@
 ## alexandria
-#### version 1.0.1
+#### version 1.0.2
 GO Image Storage and Retrieval API using [Gin](https://github.com/gin-gonic/gin)
 
 Made with images in mind, but I guess aside from compression it can handle most if not all file types. I have not tested this.
 ### Requirements
-[Go](https://www.php.net/)
+[Go](https://www.php.net/), [imagecomp](https://github.com/aprimadi/imagecomp)
 
 ### Setup
 1. Edit config.go with your preferred allowed file extensions (Only png and jpg supported for compression).
