@@ -15,7 +15,8 @@ GO Image Storage and Retrieval API using [Gin](https://github.com/gin-gonic/gin)
 - ~~Upload~~
 - ~~Retrieval~~
 - ~~Compression~~
-- Verify deployment integrity (Creates necessary project folders)
+- ~~Verify deployment integrity (Creates necessary project folders)~~
+- Add uploads to queue so they can be compressed later
 - Versioning
 - Check if image already exists in storage
 - Tests
