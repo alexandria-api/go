@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -19,21 +20,46 @@ var (
 func main() {
 
 	config = getConfig()
+	createApplicationFolders()
 
 	// gin.SetMode(gin.ReleaseMode)
 
 	router := gin.Default()
 
-	os.Setenv("PORT", "8080")
-
-	// Set a lower memory limit for multipart forms (default is 32 MiB)
-	router.MaxMultipartMemory = 8 << 20 // 8 MiB
+	router.MaxMultipartMemory = 8 << 20
 
 	router.POST("/upload", upload)
 	router.GET("/retrieve/:id", retrieve)
 
-	router.Run()
+	router.Run(":8080")
 
+}
+
+func createApplicationFolders() {
+	if _, err := os.Stat("storage"); os.IsNotExist(err) {
+		createDirErr := os.Mkdir("storage", 0777)
+		if createDirErr != nil {
+			log.Fatal("Failed to create dir 'storage'.")
+		}
+	}
+	if _, err := os.Stat("storage/images"); os.IsNotExist(err) {
+		createDirErr := os.MkdirAll("./storage/images", 0777)
+		if createDirErr != nil {
+			log.Fatal("Failed to create dir 'storage/images'.")
+		}
+	}
+	if _, err := os.Stat("storage/temporary"); os.IsNotExist(err) {
+		createDirErr := os.MkdirAll("storage/temporary", 0777)
+		if createDirErr != nil {
+			log.Fatal("Failed to create dir 'storage/temporary'.")
+		}
+	}
+	if _, err := os.Stat("storage/errors"); os.IsNotExist(err) {
+		createDirErr := os.MkdirAll("storage/errors", 0777)
+		if createDirErr != nil {
+			log.Fatal("Failed to create dir 'storage/errors'.")
+		}
+	}
 }
 
 func generateIdentifier() string {
@@ -73,6 +99,10 @@ func retrieve(c *gin.Context) {
 	}
 
 	c.File(foundFile)
+}
+
+func logError(error string) {
+
 }
 
 func validIdentifier(identifier string) bool {
@@ -135,14 +165,37 @@ func upload(c *gin.Context) {
 	}
 
 	var (
-		filename = generateIdentifier()
-		fullname = filename + "." + extension
+		filename       = generateIdentifier()
+		fullname       = filename + "." + extension
+		temporaryPath  = "storage/temporary/" + fullname
+		successfulPath = "storage/images/" + fullname
 	)
 
-	c.SaveUploadedFile(file, "storage/images/"+fullname)
+	c.SaveUploadedFile(file, temporaryPath)
+
+	compress := exec.Command("imagecomp", temporaryPath)
+	_, err = compress.Output()
+
+	if err != nil {
+		sendResponse(c, http.StatusOK, gin.H{
+			"error":   "server failure",
+			"message": "Failed to compress file.",
+		})
+		return
+	}
+
+	err = os.Rename(temporaryPath, successfulPath)
+	if err != nil {
+		sendResponse(c, http.StatusOK, gin.H{
+			"error":   "server failure",
+			"message": "Failed to move file from temporary location.",
+		})
+		return
+	}
+
 	sendResponse(c, http.StatusOK, gin.H{
 		"success": "file uploaded",
-		"message": "file has been saved as " + fullname,
+		"message": "File has been saved as " + fullname,
 	})
 }
 
