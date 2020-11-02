@@ -3,7 +3,7 @@
 GO Image Storage and Retrieval API using [Gin](https://github.com/gin-gonic/gin)
 
 ### Requirements
-[Go](https://www.php.net/)
+[Go](https://www.php.net/), [imagecomp](https://github.com/aprimadi/imagecomp)
 
 ### Setup
 1. Create directory `storage/images`
