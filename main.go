@@ -86,7 +86,7 @@ func generateIdentifier() string {
 func retrieve(c *gin.Context) {
 	id := c.Param("id")
 	if !validIdentifier(id) {
-		sendResponse(c, 400, gin.H{
+		respond(c, 400, gin.H{
 			"error":   "bad request",
 			"message": "Invalid image identifier",
 		})
@@ -106,12 +106,20 @@ func retrieve(c *gin.Context) {
 		panic(err)
 	}
 
-	var foundFile string
+	var foundFile = "not found"
 
 	for _, file := range files {
 		if strings.Contains(file, id) {
 			foundFile = file
 		}
+	}
+
+	if "not found" == foundFile {
+		respond(c, http.StatusOK, gin.H{
+			"error":   "file not found",
+			"message": "No file matching the supplied identifier was found.",
+		})
+		return
 	}
 
 	c.File(foundFile)
@@ -137,7 +145,7 @@ func upload(c *gin.Context) {
 
 	file, err := c.FormFile("file")
 	if nil != err {
-		sendResponse(c, 400, gin.H{
+		respond(c, 400, gin.H{
 			"error":   "bad request",
 			"message": "A file must be supplied as value in form data with key 'file'",
 		})
@@ -147,7 +155,7 @@ func upload(c *gin.Context) {
 	// file.Filename must be a file name and an extension
 	matched, err := regexp.MatchString(`[^\\]*\.(\w+)$`, file.Filename)
 	if nil != err {
-		sendResponse(c, 400, gin.H{
+		respond(c, 400, gin.H{
 			"error":   "bad request",
 			"message": "File name must be a file name and an extension",
 		})
@@ -155,7 +163,7 @@ func upload(c *gin.Context) {
 	}
 
 	if !matched {
-		sendResponse(c, 400, gin.H{
+		respond(c, 400, gin.H{
 			"error":   "bad request",
 			"message": "Content Disposition Filename must be supplied",
 		})
@@ -169,7 +177,7 @@ func upload(c *gin.Context) {
 
 	if !stringInSlice(extension, config.permittedFileExtensions) {
 		var pretty = strings.Join(config.permittedFileExtensions, ", ")
-		sendResponse(c, 400, gin.H{
+		respond(c, 400, gin.H{
 			"error":   "bad request",
 			"message": "File extension must be one of: " + pretty,
 		})
@@ -186,7 +194,7 @@ func upload(c *gin.Context) {
 
 	err = c.SaveUploadedFile(file, temporaryPath)
 	if nil != err {
-		sendResponse(c, 500, gin.H{
+		respond(c, 500, gin.H{
 			"error":   "server failure",
 			"message": "Failed to save image to temporary location.",
 		})
@@ -195,21 +203,47 @@ func upload(c *gin.Context) {
 
 	movedToQueue := moveImage(temporaryPath, queuePath)
 	if !movedToQueue {
-		sendResponse(c, 500, gin.H{
+		respond(c, 500, gin.H{
 			"error":   "server failure",
 			"message": "Failed to move image into queue.",
 		})
 		return
 	}
 
-	go compressAndFinishUploadedImage(queuePath, successfulPath)
+	var compressableExtensions = []string{"png", "jpg", "jpeg"}
 
-	positionInQueue++
-	sendResponse(c, http.StatusOK, gin.H{
-		"success": "file added to queue",
-		"message": "Position in queue: " + fmt.Sprintf("%v", positionInQueue),
-		"id":      filename,
-	})
+	if contains(compressableExtensions, extension) {
+		go compressAndFinishUploadedImage(queuePath, successfulPath)
+		positionInQueue++
+		respond(c, http.StatusOK, gin.H{
+			"success": "file added to queue",
+			"message": "Position in queue: " + fmt.Sprintf("%v", positionInQueue),
+			"id":      filename,
+		})
+	} else {
+		imageMoved := moveImage(queuePath, successfulPath)
+		if !imageMoved {
+			respond(c, 500, gin.H{
+				"error":   "server failure",
+				"message": "Failed to move image into final location.",
+			})
+			return
+		}
+		respond(c, http.StatusOK, gin.H{
+			"success": "file uploaded",
+			"message": "File has been uploaded successfully.",
+			"id":      filename,
+		})
+	}
+}
+
+func contains(s []string, e string) bool {
+	for _, a := range s {
+		if a == e {
+			return true
+		}
+	}
+	return false
 }
 
 func moveImage(imagePath string, newPath string) bool {
@@ -236,7 +270,7 @@ func compressAndFinishUploadedImage(imagePath string, finalPath string) bool {
 	return true
 }
 
-func sendResponse(c *gin.Context, code int, res gin.H) {
+func respond(c *gin.Context, code int, res gin.H) {
 	c.JSON(code, res)
 }
 
