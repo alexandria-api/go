@@ -89,7 +89,7 @@ func Upload(c *gin.Context) {
 
 		// Move to backlog if queue is full
 
-		go compressAndFinishUploadedImage(queuePath, successfulPath)
+		go compressAndFinishUploadedImage(filename, queuePath, successfulPath)
 		positionInQueue++
 		respond(c, http.StatusOK, gin.H{
 			"success": "file added to queue",

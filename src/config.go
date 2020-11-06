@@ -7,6 +7,7 @@ type Config struct {
 	useCompression          bool
 	permittedFileExtensions []string
 	dir                     ApplicationFolders
+	stateFile               string
 }
 
 // ApplicationFolders - Folders used by the application.
@@ -44,6 +45,7 @@ func getConfig() Config {
 			backlog:     "storage/backlog",
 			logs:        "storage/logs",
 		},
+		stateFile: "storage/state.json",
 	}
 
 	return config
