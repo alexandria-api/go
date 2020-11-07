@@ -59,6 +59,7 @@ func Upload(c *gin.Context) {
 
 	var (
 		filename       = generateIdentifier()
+		imageID        = &imageIdentifier{id: filename}
 		fullname       = "/" + filename + "." + extension
 		temporaryPath  = config.dir.temporary + fullname
 		queuePath      = config.dir.queue + fullname
@@ -73,6 +74,7 @@ func Upload(c *gin.Context) {
 		})
 		return
 	}
+	imageID.updateState("temporary")
 
 	movedToQueue := moveImage(temporaryPath, queuePath)
 	if !movedToQueue {
@@ -82,6 +84,7 @@ func Upload(c *gin.Context) {
 		})
 		return
 	}
+	imageID.updateState("queue")
 
 	var compressableExtensions = []string{"png", "jpg", "jpeg"}
 
@@ -89,7 +92,7 @@ func Upload(c *gin.Context) {
 
 		// Move to backlog if queue is full
 
-		go compressAndFinishUploadedImage(filename, queuePath, successfulPath)
+		go compressAndFinishUploadedImage(imageID, queuePath, successfulPath)
 		positionInQueue++
 		respond(c, http.StatusOK, gin.H{
 			"success": "file added to queue",
@@ -109,6 +112,8 @@ func Upload(c *gin.Context) {
 		})
 		return
 	}
+	imageID.updateState("finished")
+
 	respond(c, http.StatusOK, gin.H{
 		"success": "file uploaded",
 		"message": "File has been uploaded successfully.",

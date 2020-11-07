@@ -70,9 +70,7 @@ func moveImage(imagePath string, newPath string) bool {
 	return true
 }
 
-func compressAndFinishUploadedImage(id string, imagePath string, finalPath string) bool {
-	saveState(id, "temporary")
-
+func compressAndFinishUploadedImage(id *imageIdentifier, imagePath string, finalPath string) bool {
 	compress := exec.Command("imagecomp", imagePath)
 	_, err := compress.Output()
 	if nil != err {
@@ -83,6 +81,7 @@ func compressAndFinishUploadedImage(id string, imagePath string, finalPath strin
 	if !imageMoved {
 		return false
 	}
+	id.updateState("finished")
 	positionInQueue--
 
 	return true
@@ -101,7 +100,7 @@ func stringInSlice(a string, list []string) bool {
 	return false
 }
 
-func saveState(id string, state string) {
+func (imd *imageIdentifier) updateState(state string) {
 	if _, err := os.Stat(config.stateFile); os.IsNotExist(err) {
 		_, err := os.Create(config.stateFile)
 		if err != nil {
@@ -119,13 +118,13 @@ func saveState(id string, state string) {
 	stateMap := make(map[string]string)
 	stateMap["state"] = state
 
-	data[id] = stateMap
+	data[imd.id] = stateMap
 
 	file, _ := json.MarshalIndent(data, "", " ")
 
 	_ = ioutil.WriteFile(config.stateFile, file, 0644)
 }
 
-func updateState() {
-	// TODO: Implement updateState function
+type imageIdentifier struct {
+	id string
 }
