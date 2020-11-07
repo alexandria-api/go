@@ -48,7 +48,7 @@ func Upload(c *gin.Context) {
 		extension                 = explodedFilename[1]
 	)
 
-	if !stringInSlice(extension, config.permittedFileExtensions) {
+	if !stringInSlice(strings.ToLower(extension), config.permittedFileExtensions) {
 		var pretty = strings.Join(config.permittedFileExtensions, ", ")
 		respond(c, 400, gin.H{
 			"error":   "bad request",
@@ -85,7 +85,7 @@ func Upload(c *gin.Context) {
 
 	var compressableExtensions = []string{"png", "jpg", "jpeg"}
 
-	if contains(compressableExtensions, extension) {
+	if contains(compressableExtensions, strings.ToLower(extension)) {
 
 		// Move to backlog if queue is full
 
@@ -98,7 +98,6 @@ func Upload(c *gin.Context) {
 		})
 		log.Println("File added to compression queue.")
 		return
-
 	}
 
 	imageMoved := moveImage(queuePath, successfulPath)
