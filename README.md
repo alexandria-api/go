@@ -1,4 +1,6 @@
 ## alexandria
+<img class="badge" tag="github.com/alexandria-api/go" src="https://goreportcard.com/badge/github.com/alexandria-api/go">
+
 #### version 1.0.2
 GO Image Storage and Retrieval API using [Gin](https://github.com/gin-gonic/gin)
 
