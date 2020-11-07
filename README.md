@@ -18,7 +18,7 @@ Made with images in mind, but I guess aside from compression it can handle most 
 - ~~Check if file is png or jpg for compression~~
 - ~~Add uploads to queue, so they can be compressed while the http request is finished~~
 - Implement a proper job queue
-- Allow a limit to be put on the amount of simultaneous image compressions.
+- ~~Allow a limit to be put on the amount of simultaneous image compressions.~~
 - Add logging to all errors
 - Check if image already exists in storage
 - Tests
