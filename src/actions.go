@@ -48,7 +48,7 @@ func Upload(c *gin.Context) {
 		extension                 = explodedFilename[1]
 	)
 
-	if !stringInSlice(extension, config.permittedFileExtensions) {
+	if !stringInSlice(strings.ToLower(extension), config.permittedFileExtensions) {
 		var pretty = strings.Join(config.permittedFileExtensions, ", ")
 		respond(c, 400, gin.H{
 			"error":   "bad request",
@@ -59,6 +59,7 @@ func Upload(c *gin.Context) {
 
 	var (
 		filename       = generateIdentifier()
+		imageID        = &imageIdentifier{id: filename}
 		fullname       = "/" + filename + "." + extension
 		temporaryPath  = config.dir.temporary + fullname
 		queuePath      = config.dir.queue + fullname
@@ -73,6 +74,7 @@ func Upload(c *gin.Context) {
 		})
 		return
 	}
+	imageID.updateState("temporary")
 
 	movedToQueue := moveImage(temporaryPath, queuePath)
 	if !movedToQueue {
@@ -82,14 +84,15 @@ func Upload(c *gin.Context) {
 		})
 		return
 	}
+	imageID.updateState("queue")
 
 	var compressableExtensions = []string{"png", "jpg", "jpeg"}
 
-	if contains(compressableExtensions, extension) {
+	if contains(compressableExtensions, strings.ToLower(extension)) {
 
 		// Move to backlog if queue is full
 
-		go compressAndFinishUploadedImage(filename, queuePath, successfulPath)
+		go imageID.compressAndFinish(queuePath, successfulPath, false)
 		positionInQueue++
 		respond(c, http.StatusOK, gin.H{
 			"success": "file added to queue",
@@ -98,7 +101,6 @@ func Upload(c *gin.Context) {
 		})
 		log.Println("File added to compression queue.")
 		return
-
 	}
 
 	imageMoved := moveImage(queuePath, successfulPath)
@@ -109,6 +111,8 @@ func Upload(c *gin.Context) {
 		})
 		return
 	}
+	imageID.updateState("finished")
+
 	respond(c, http.StatusOK, gin.H{
 		"success": "file uploaded",
 		"message": "File has been uploaded successfully.",
