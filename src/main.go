@@ -5,14 +5,17 @@ import (
 )
 
 var (
-	config          Config
-	positionInQueue = 0
+	config               Config
+	positionInQueue      = -1
+	currentlyCompressing int
 )
 
 func main() {
 
 	config = getConfig()
 	createApplicationFolders()
+	createStateFile()
+	resetCompressionStates()
 	processQueue()
 
 	// gin.SetMode(gin.ReleaseMode)
