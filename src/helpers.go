@@ -69,13 +69,14 @@ func moveImage(imagePath string, newPath string) bool {
 	if nil != err {
 		return false
 	}
-	return true
+	return false
 }
 
-func (id *imageIdentifier) compressAndFinish(imagePath string, finalPath string) bool {
+func (id *imageIdentifier) compressAndFinish(imagePath string, finalPath string, afterProcessQueue bool) bool {
 	log.Printf("Compressing image: %s", id.id)
 
 	id.updateState("compressing")
+	log.Printf("current compressions: %d", getAmountOfCurrentCompressions())
 	compress := exec.Command("imagecomp", imagePath)
 	_, err := compress.Output()
 	if nil != err {
@@ -89,10 +90,8 @@ func (id *imageIdentifier) compressAndFinish(imagePath string, finalPath string)
 	id.updateState("finished")
 	positionInQueue--
 
-	log.Printf("current compressions: %d", getAmountOfCurrentCompressions())
-
 	// Refresh queue
-	if 0 == getAmountOfCurrentCompressions() {
+	if afterProcessQueue {
 		processQueue()
 	}
 	return true
@@ -103,15 +102,10 @@ func respond(c *gin.Context, code int, res gin.H) {
 }
 
 func processQueue() {
-	stateFile, _ := ioutil.ReadFile(config.stateFile)
-	data := make(map[string]map[string]string)
-	err := json.Unmarshal(stateFile, &data)
-	if err != nil {
-		log.Fatal(err)
-	}
+	states := getStates()
 
 	var files []string
-	err = filepath.Walk(config.dir.queue, func(path string, info os.FileInfo, err error) error {
+	err := filepath.Walk(config.dir.queue, func(path string, info os.FileInfo, err error) error {
 		files = append(files, path)
 		return nil
 	})
@@ -121,7 +115,7 @@ func processQueue() {
 
 	var imagesToCompress []*imageSnapshot
 
-	for index, imageState := range data {
+	for index, imageState := range states {
 
 		if "queue" == imageState["state"] {
 
@@ -152,14 +146,9 @@ func processQueue() {
 		return
 	}
 
-	stateFile, _ = ioutil.ReadFile(config.stateFile)
-	data = make(map[string]map[string]string)
-	err = json.Unmarshal(stateFile, &data)
-	if err != nil {
-		log.Fatal(err)
-	}
+	states = getStates()
 
-	for _, imageState := range data {
+	for _, imageState := range states {
 		if "compressing" == imageState["state"] {
 			currentlyCompressing++
 		}
@@ -173,12 +162,17 @@ func processQueue() {
 
 	log.Printf("imagesToCompress: %d", len(imagesToCompress))
 
-	for _, image := range imagesToCompress {
-		if canCompress > 0 {
-			go image.imd.compressAndFinish(image.currentPath, image.finalPath)
-			canCompress--
-			positionInQueue++
+	for i := 0; i < len(imagesToCompress); i++ {
+		relImg := imagesToCompress[i]
+
+		var processQueueAfter = false
+		if (i == 0 && len(imagesToCompress) == 1) || i == (len(imagesToCompress)-1) {
+			processQueueAfter = true
 		}
+
+		go relImg.imd.compressAndFinish(relImg.currentPath, relImg.finalPath, processQueueAfter)
+		canCompress--
+		positionInQueue++
 	}
 }
 
@@ -210,46 +204,36 @@ func createStateFile() {
 }
 
 func (id *imageIdentifier) updateState(state string) {
-	stateFile, _ := ioutil.ReadFile(config.stateFile)
-	data := make(map[string]map[string]string)
-	err := json.Unmarshal(stateFile, &data)
-	if err != nil {
-		log.Fatal(err)
-	}
+	states := getStates()
 
 	stateMap := make(map[string]string)
 	stateMap["state"] = state
 
-	data[id.id] = stateMap
+	states[id.id] = stateMap
 
-	file, _ := json.MarshalIndent(data, "", " ")
+	statesJSON, _ := json.MarshalIndent(states, "", " ")
 
-	_ = ioutil.WriteFile(config.stateFile, file, 0644)
+	_ = ioutil.WriteFile(config.stateFile, statesJSON, 0644)
 }
 
 func resetCompressionStates() {
-	stateFile, _ := ioutil.ReadFile(config.stateFile)
-	data := make(map[string]map[string]string)
-	err := json.Unmarshal(stateFile, &data)
-	if err != nil {
-		log.Fatal(err)
-	}
+	states := getStates()
 
 	queueStateMap := make(map[string]string)
 	queueStateMap["state"] = "queue"
 
-	for index, imageState := range data {
+	for index, imageState := range states {
 		if "compressing" == imageState["state"] {
-			data[index] = queueStateMap
+			states[index] = queueStateMap
 		}
 	}
 
-	file, _ := json.MarshalIndent(data, "", " ")
+	statesJSON, _ := json.MarshalIndent(states, "", " ")
 
-	_ = ioutil.WriteFile(config.stateFile, file, 0644)
+	_ = ioutil.WriteFile(config.stateFile, statesJSON, 0644)
 }
 
-func getAmountOfCurrentCompressions() int {
+func getStates() map[string]map[string]string {
 	stateFile, _ := ioutil.ReadFile(config.stateFile)
 	data := make(map[string]map[string]string)
 	err := json.Unmarshal(stateFile, &data)
@@ -257,9 +241,13 @@ func getAmountOfCurrentCompressions() int {
 		log.Fatal(err)
 	}
 
-	var count = 0
+	return data
+}
 
-	for _, imageState := range data {
+func getAmountOfCurrentCompressions() int {
+	states := getStates()
+	var count = 0
+	for _, imageState := range states {
 		if "compressing" == imageState["state"] {
 			count++
 		}
