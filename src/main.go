@@ -13,6 +13,7 @@ func main() {
 
 	config = getConfig()
 	createApplicationFolders()
+	processQueue()
 
 	// gin.SetMode(gin.ReleaseMode)
 
