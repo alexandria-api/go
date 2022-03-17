@@ -26,7 +26,12 @@ Made with images in mind, but I guess aside from compression it can handle most 
 - ~~Allow a limit to be put on the amount of simultaneous image compressions.~~
 - Add logging to all errors
 - Check if image already exists in storage
+  - By filename
+  - Using ImageMagick
 - Tests
-- Allow for optional compression ? Maybe
+- Allow for optional compression
 - Rate limit
-- Transform alexandria into a file hosting api with the same image features but support for other file types?
+- Add support for other file types
+- Process temporary folder into queue on start up
+- Add metadata signalling when image has been compressed
+- Process queue folder by checking metadata on start up
